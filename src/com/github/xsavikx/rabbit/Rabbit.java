@@ -1,24 +1,32 @@
-package org.csdgn.crypt;
+package com.github.xsavikx.rabbit;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import sun.awt.CharsetString;
+import sun.nio.cs.CharsetMapping;
+
 /**
- * Tested against the actual RFC.
+ * Rabbit cipher wrapper
  * 
- * @author Chase (Robert Maupin)
- * @see {@link http://tools.ietf.org/rfc/rfc4503.txt}
+ * @author Iurii Sergiichuk
+ * 
  */
 public class Rabbit {
 	private static final int KEYSTREAM_LENGTH = 16;
-	private static final int[] A = new int[] { 0x4D34D34D, 0xD34D34D3, 0x34D34D34, 0x4D34D34D, 0xD34D34D3, 0x34D34D34, 0x4D34D34D,
-			0xD34D34D3 };
+	private static final int IV_LENGTH = 8;
+	private static final int[] A = new int[] {
+			0x4D34D34D, 0xD34D34D3, 0x34D34D34, 0x4D34D34D, 0xD34D34D3,
+			0x34D34D34, 0x4D34D34D, 0xD34D34D3
+	};
 
 	private static final int rotl(final int value, final int shift) {
 		return value << shift | value >>> 32 - shift;
 	}
 
-	private final int[] X = new int[8];
-	private final int[] C = new int[8];
+	private final int[] X = new int[IV_LENGTH];
+	private final int[] C = new int[IV_LENGTH];
 	private byte b;
 	private int keyindex = 0;
 	private byte[] keystream = null;
@@ -27,18 +35,96 @@ public class Rabbit {
 		b = 0;
 	}
 
+	public byte[] encryptMessage(final String message, Charset charset,
+			String key, String iv, boolean addPadding) {
+		if (message == null || key == null || charset == null
+				|| message.isEmpty() || key.isEmpty()) {
+			throw new IllegalArgumentException();
+		}
+		byte[] msg = null;
+		if (addPadding) {
+			msg = addPadding(message.getBytes(charset));
+		} else {
+			msg = message.getBytes(charset);
+		}
+		byte[] byteKey = getKeyFromString(key, charset);
+
+		reset();
+		setupKey(byteKey);
+		if (iv != null && !iv.isEmpty()) {
+			byte[] byteIV = getIVFromString(iv, charset);
+			setupIV(byteIV);
+		}
+		byte[] crypt = crypt(msg);
+		reset();
+		return crypt;
+	}
+
+	private byte[] getIVFromString(String iv, Charset charset) {
+		return Arrays.copyOf(iv.getBytes(charset), IV_LENGTH);
+	}
+
+	private byte[] getKeyFromString(String key, Charset charset) {
+		return Arrays.copyOf(key.getBytes(charset), KEYSTREAM_LENGTH);
+	}
+
+	public byte[] encryptMessage(final String message, String key, String iv,
+			boolean addPadding) {
+		return encryptMessage(message, StandardCharsets.UTF_8, key, iv,
+				addPadding);
+	}
+
+	public String decryptMessage(final byte[] encMessage, Charset charset,
+			String key, String iv, boolean trimPadding) {
+		if (encMessage == null || key == null || charset == null
+				|| key.isEmpty()) {
+			throw new IllegalArgumentException();
+		}
+		byte[] byteKey = getKeyFromString(key, charset);
+
+		reset();
+		setupKey(byteKey);
+		if (iv != null && !iv.isEmpty()) {
+			byte[] byteIV = getIVFromString(iv, charset);
+			setupIV(byteIV);
+		}
+		byte[] crypt = crypt(encMessage);
+		reset();
+		if (trimPadding) {
+			return new String(crypt, charset).trim();
+		} else {
+			return new String(crypt, charset);
+		}
+	}
+
+	public String decryptMessage(final byte[] encMessage, String key,
+			String iv, boolean trimPadding) {
+		return decryptMessage(encMessage, StandardCharsets.UTF_8, key, iv,
+				trimPadding);
+	}
+
+	private byte[] addPadding(final byte[] message) {
+		if (message.length % KEYSTREAM_LENGTH != 0) {
+			return Arrays.copyOf(message, message.length + message.length
+					% KEYSTREAM_LENGTH);
+		} else {
+			return message;
+		}
+
+	}
+
 	/**
 	 * Should be fed an array with a length that is a multiple of 16 for proper
 	 * key sequencing.
 	 */
 	public byte[] crypt(final byte[] message) {
 		int index = 0;
-		while(index < message.length) {
-			if(keystream == null || keyindex == KEYSTREAM_LENGTH) {
+		while (index < message.length) {
+			if (keystream == null || keyindex == KEYSTREAM_LENGTH) {
 				keystream = keyStream();
 				keyindex = 0;
 			}
-			for(; keyindex < KEYSTREAM_LENGTH && index < message.length; ++keyindex)
+			for (; keyindex < KEYSTREAM_LENGTH && index < message.length; ++keyindex)
 				message[index++] ^= keystream[keyindex];
 		}
 		return message;
@@ -49,7 +135,7 @@ public class Rabbit {
 	 */
 	private byte[] keyStream() {
 		nextState();
-		final byte[] s = new byte[16];
+		final byte[] s = new byte[KEYSTREAM_LENGTH];
 		/* unroll */
 		int x = X[6] ^ X[3] >>> 16 ^ X[1] << 16;
 		s[0] = (byte) (x >>> 24);
@@ -76,14 +162,14 @@ public class Rabbit {
 
 	private void nextState() {
 		/* counter update */
-		for(int j = 0; j < 8; ++j) {
+		for (int j = 0; j < IV_LENGTH; ++j) {
 			final long t = (C[j] & 0xFFFFFFFFL) + (A[j] & 0xFFFFFFFFL) + b;
 			b = (byte) (t >>> 32);
 			C[j] = (int) (t & 0xFFFFFFFF);
 		}
 		/* next state function */
-		final int G[] = new int[8];
-		for(int j = 0; j < 8; ++j) {
+		final int G[] = new int[IV_LENGTH];
+		for (int j = 0; j < IV_LENGTH; ++j) {
 			// TODO: reduce this to use 32 bits only
 			long t = X[j] + C[j] & 0xFFFFFFFFL;
 			G[j] = (int) ((t *= t) ^ t >>> 32);
@@ -115,13 +201,13 @@ public class Rabbit {
 	 *            An array of 8 bytes
 	 */
 	public void setupIV(final byte[] IV) {
-		short[] sIV = new short[IV.length>>1];
-		for(int i=0;i<sIV.length;++i) {
-			sIV[i] = (short)((IV[i << 1] << 8) | IV[(2 << 1) + 1]);
+		short[] sIV = new short[IV.length >> 1];
+		for (int i = 0; i < sIV.length; ++i) {
+			sIV[i] = (short) ((IV[i << 1] << 8) | IV[(2 << 1) + 1]);
 		}
 		setupIV(sIV);
 	}
-	
+
 	/**
 	 * @param iv
 	 *            array of 4 short values
@@ -136,7 +222,7 @@ public class Rabbit {
 		C[5] ^= iv[3] << 16 | iv[1] & 0xFFFF;
 		C[6] ^= iv[3] << 16 | iv[2] & 0xFFFF;
 		C[7] ^= iv[2] << 16 | iv[0] & 0xFFFF;
-		
+
 		nextState();
 		nextState();
 		nextState();
@@ -148,9 +234,9 @@ public class Rabbit {
 	 *            An array of 16 bytes
 	 */
 	public void setupKey(final byte[] key) {
-		short[] sKey = new short[key.length>>1];
-		for(int i=0;i<sKey.length;++i) {
-			sKey[i] = (short)((key[i << 1] << 8) | key[(2 << 1) + 1]);
+		short[] sKey = new short[key.length >> 1];
+		for (int i = 0; i < sKey.length; ++i) {
+			sKey[i] = (short) ((key[i << 1] << 8) | key[(2 << 1) + 1]);
 		}
 		setupKey(sKey);
 	}
