@@ -1,6 +1,7 @@
 /bin
 *.class
-*.~
+*~
 .classpath
 .project
 *.dat
+/.settings/

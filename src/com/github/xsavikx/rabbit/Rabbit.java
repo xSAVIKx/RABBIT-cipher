@@ -4,24 +4,27 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import sun.awt.CharsetString;
-import sun.nio.cs.CharsetMapping;
-
 /**
  * Rabbit cipher wrapper
  * 
  * @author Iurii Sergiichuk
- * 
  */
 public class Rabbit {
-	private static final int KEYSTREAM_LENGTH = 16;
-	private static final int IV_LENGTH = 8;
-	private static final int[] A = new int[] {
-			0x4D34D34D, 0xD34D34D3, 0x34D34D34, 0x4D34D34D, 0xD34D34D3,
-			0x34D34D34, 0x4D34D34D, 0xD34D34D3
-	};
+	/**
+	 * Length of keystream
+	 */
+	public static final int KEYSTREAM_LENGTH = 16;
+	public static final int IV_LENGTH = 8;
 
-	private static final int rotl(final int value, final int shift) {
+	/**
+	 * A constants due to <a
+	 * href=https://tools.ietf.org/html/rfc4503#section-2.5">Counter system</a>
+	 */
+	private static final int[] A = new int[] { 0x4D34D34D, 0xD34D34D3,
+			0x34D34D34, 0x4D34D34D, 0xD34D34D3, 0x34D34D34, 0x4D34D34D,
+			0xD34D34D3 };
+
+	private final int rotl(final int value, final int shift) {
 		return value << shift | value >>> 32 - shift;
 	}
 
@@ -35,6 +38,23 @@ public class Rabbit {
 		b = 0;
 	}
 
+	/**
+	 * Encrypt given message with given charset, using Key to crypt and given
+	 * IV. If addPadding is set - string will be padded with zeros to be
+	 * multiple of KEYSTREAM_LENGTH
+	 * 
+	 * @param message
+	 *            message to be encrypted
+	 * @param charset
+	 *            message charset
+	 * @param key
+	 *            key
+	 * @param iv
+	 *            IV
+	 * @param addPadding
+	 *            padding indicator
+	 * @return encrypted byte array
+	 */
 	public byte[] encryptMessage(final String message, Charset charset,
 			String key, String iv, boolean addPadding) {
 		if (message == null || key == null || charset == null
@@ -60,20 +80,73 @@ public class Rabbit {
 		return crypt;
 	}
 
+	/**
+	 * Returns byte representation of IV from given iv String with given charset
+	 * 
+	 * @param iv
+	 *            IV string
+	 * @param charset
+	 *            IV charset
+	 * @return byte representation of IV
+	 */
 	private byte[] getIVFromString(String iv, Charset charset) {
 		return Arrays.copyOf(iv.getBytes(charset), IV_LENGTH);
 	}
 
+	/**
+	 * Returns byte representation of key from given String with given charset
+	 * 
+	 * @param key
+	 *            key string
+	 * @param charset
+	 *            key charset
+	 * @return byte representation of key
+	 */
 	private byte[] getKeyFromString(String key, Charset charset) {
 		return Arrays.copyOf(key.getBytes(charset), KEYSTREAM_LENGTH);
 	}
 
+	/**
+	 * Encrypt given message with given pre-defined UTF-8 charset, using Key to
+	 * crypt and given
+	 * IV. If addPadding is set - string will be padded with zeros to be
+	 * multiple of KEYSTREAM_LENGTH
+	 * 
+	 * @param message
+	 *            message to be encrypted
+	 * @param charset
+	 *            message charset
+	 * @param key
+	 *            key
+	 * @param iv
+	 *            IV
+	 * @param addPadding
+	 *            padding indicator
+	 * @return encrypted byte array
+	 * @see StandardCharsets
+	 */
 	public byte[] encryptMessage(final String message, String key, String iv,
 			boolean addPadding) {
 		return encryptMessage(message, StandardCharsets.UTF_8, key, iv,
 				addPadding);
 	}
 
+	/**
+	 * Decrypt given byte array to String with given charset, using Key and IV,
+	 * and if timePadding is set - with omitted leading and trailing whitespace.
+	 * 
+	 * @param encMessage
+	 *            message byte array to decrypt
+	 * @param charset
+	 *            charset of needed string decrypted equivalent
+	 * @param key
+	 *            key
+	 * @param iv
+	 *            IV
+	 * @param trimPadding
+	 *            padding indicator
+	 * @return String with in given Charset encoding
+	 */
 	public String decryptMessage(final byte[] encMessage, Charset charset,
 			String key, String iv, boolean trimPadding) {
 		if (encMessage == null || key == null || charset == null
@@ -97,12 +170,37 @@ public class Rabbit {
 		}
 	}
 
+	/**
+	 * Decrypt given byte array to String with given pre-defined UTF-8 charset,
+	 * using Key and IV,
+	 * and if timePadding is set - with omitted leading and trailing whitespace.
+	 * 
+	 * @param encMessage
+	 *            message byte array to decrypt
+	 * @param charset
+	 *            charset of needed string decrypted equivalent
+	 * @param key
+	 *            key
+	 * @param iv
+	 *            IV
+	 * @param trimPadding
+	 *            padding indicator
+	 * @return String with in pre-defined UTF-8 charset
+	 * @see StandardCharsets
+	 */
 	public String decryptMessage(final byte[] encMessage, String key,
 			String iv, boolean trimPadding) {
 		return decryptMessage(encMessage, StandardCharsets.UTF_8, key, iv,
 				trimPadding);
 	}
 
+	/**
+	 * Add padding to given message byte array
+	 * 
+	 * @param message
+	 *            byte array to add padding
+	 * @return padded byte array
+	 */
 	private byte[] addPadding(final byte[] message) {
 		if (message.length % KEYSTREAM_LENGTH != 0) {
 			return Arrays.copyOf(message, message.length + message.length
@@ -114,8 +212,15 @@ public class Rabbit {
 	}
 
 	/**
-	 * Should be fed an array with a length that is a multiple of 16 for proper
-	 * key sequencing.
+	 * Crypt function
+	 * 
+	 * @param message
+	 *            byte array to be crypted. Should be fed an array with a length
+	 *            that is multiple of 16 for proper key sequencing.
+	 * @return array of crypted bytes
+	 * @see <a
+	 *      href="https://tools.ietf.org/html/rfc4503#section-2.8">Encryption/Decryption
+	 *      Scheme</a>
 	 */
 	public byte[] crypt(final byte[] message) {
 		int index = 0;
@@ -131,7 +236,10 @@ public class Rabbit {
 	}
 
 	/**
-	 * returns 16 bytes
+	 * S-block extraction
+	 * 
+	 * @see <a href="https://tools.ietf.org/html/rfc4503#section-2.7">Extraction
+	 *      Scheme</a>
 	 */
 	private byte[] keyStream() {
 		nextState();
@@ -160,6 +268,13 @@ public class Rabbit {
 		return s;
 	}
 
+	/**
+	 * Next state function
+	 * 
+	 * @see <a href="http://goo.gl/mY6wla">Next-State Function, Wikipedia</a>
+	 * @see <a href="https://tools.ietf.org/html/rfc4503#section-2.6">
+	 *      Next-State Function RFC4503</a>
+	 */
 	private void nextState() {
 		/* counter update */
 		for (int j = 0; j < IV_LENGTH; ++j) {
@@ -211,6 +326,8 @@ public class Rabbit {
 	/**
 	 * @param iv
 	 *            array of 4 short values
+	 * @see <a href="https://tools.ietf.org/html/rfc4503#section-2.4">Setup
+	 *      IV</a>
 	 */
 	public void setupIV(final short[] iv) {
 		/* unroll */
@@ -244,6 +361,8 @@ public class Rabbit {
 	/**
 	 * @param key
 	 *            An array of 8 short values
+	 * @see <a href="https://tools.ietf.org/html/rfc4503#section-2.3">Setup
+	 *      key</a>
 	 */
 	public void setupKey(final short[] key) {
 		/* unroll */
