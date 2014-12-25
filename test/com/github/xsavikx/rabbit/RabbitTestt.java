@@ -15,21 +15,25 @@ public class RabbitTestt {
 
 	public static void main(String[] args) {
 		RabbitTestt test = new RabbitTestt();
+		writeEncryptedMessageToFile();
+		test.test(new Rabbit());
+
+	}
+
+	private static void writeEncryptedMessageToFile() {
 		File f = new File(fileName);
 		Rabbit rabbit = new Rabbit();
-		try {
+		try (BufferedOutputStream bos = new BufferedOutputStream(
+				new FileOutputStream(f));) {
 			byte[] encMsg = rabbit.encryptMessage(msg, key, IV, false);
-			BufferedOutputStream bos = new BufferedOutputStream(
-					new FileOutputStream(f));
+
 			bos.write(encMsg);
 			bos.flush();
 			bos.close();
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
-		// test.test(new Rabbit());
-		catch (IOException e) {
+		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}

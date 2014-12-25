@@ -4,9 +4,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import sun.awt.CharsetString;
-import sun.nio.cs.CharsetMapping;
-
 /**
  * Rabbit cipher wrapper
  * 
